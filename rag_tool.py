@@ -1,32 +1,36 @@
-from firework_api import call_firework_api
 from serp_api import get_url_content
-from content_preprocessor import clean_content
 from chunking_algorithms import fixed_size_chunking, semantic_chunking, question_based_chunking
+from firework_api import generate_answer_api, select_best_answer_api
+from content_preprocessor import clean_content
 
-
-def _select_best_answer(answers):
-    # Sort answers by relevance and return the most relevant one
-    best_answer = max(answers, key=lambda x: x.get('relevance', 0))
-    return best_answer['text'] if 'text' in best_answer else "No relevant answer found"
-
-def generate_answer(url, question, api_key_serp, api_key_firework):
+def generate_answer(url, question, api_key_firework, chunking_method='fixed'):
     # Retrieve and clean content
-    raw_content = get_url_content(url, api_key_serp)
+    raw_content = ...
+    try: 
+      raw_content = get_url_content(url)
+    except:
+      return "Can't read url data"
+
     clean_text = clean_content(raw_content)
+    # Apply the chosen chunking method (e.g., fixed-size, semantic, or question-based)
+    if chunking_method == 'fixed':
+        chunks = fixed_size_chunking(clean_text)
+    elif chunking_method == 'semantic':
+        chunks = semantic_chunking(clean_text)
+    elif chunking_method == 'question':
+        chunks = question_based_chunking(clean_text, question)
+    else:
+        raise ValueError("Invalid chunking method")
 
-    # Apply chunking methods
-    fixed_chunks = fixed_size_chunking(clean_text)
-    semantic_chunks = semantic_chunking(clean_text)
-    question_chunks = question_based_chunking(clean_text, question)
-
-    # Combine chunks for processing (or prioritize one type)
-    all_chunks = fixed_chunks + semantic_chunks + question_chunks
-
-    # Send each chunk to Firework API and collect responses
+    # Collect answers for each chunk
     answers = []
-    for chunk in all_chunks:
-        answer = call_firework_api(chunk, question, api_key_firework)
+    for chunk in chunks:
+        print("chunk:", chunk)
+        answer = generate_answer_api(chunk, question, api_key_firework)
+        print('answer:', answer)
         answers.append(answer)
 
-    # Evaluate and select the best answer
-    return _select_best_answer(answers)
+    if not answers:
+      return "No answer found"
+
+    return select_best_answer_api(answers,question,api_key_firework)
